@@ -1,0 +1,123 @@
+# docker-compose-n8n-ollama-mcp-openwebui.yml
+
+networks:
+  monitoring:
+    external: true   # It uses the network we created manually.
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:v0.6.31
+    # or image: ghcr.io/open-webui/open-webui:git-d4f21c7
+    container_name: open-webui
+    ports:
+      - "3010:8080"     
+    environment:
+      # If you are using an external Ollama or other LLMs, add it here.
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - ENABLE_MCP=true
+      - PYTHONPATH=/app:/app/backend
+      - WORKSPACE_TOOLS_ENABLED=true 
+      - ENABLE_TOOLS=true
+      - GLOBAL_LOG_LEVEL=DEBUG
+      - TOOLS_DIR=/app/backend/data/tools
+      - WEBUI_AUTH=true
+      # To display the answer in the WebUI:
+      - OPENWEBUI_TIMEOUT=300    # 300 sn timeout
+      - STREAM_RESPONSES=true    # for stream=True 
+      - FUNCTION_CALLING=native  # Important: `true` is not available; this solved the problem.
+      - TOOL_INJECTION=true  
+      - 'TOOL_SERVERS=[{"name":"grafana-tool-server","url":"http://grafana-tool-server:8000"}]'
+      # - SYSTEM_PROMPT_FILE=/app/backend/system_prompt.txt
+    volumes:
+      - openwebui_data:/app/backend/data   # permanent data (users, queries etc.)
+      - openwebui_uploads:/app/backend/uploads  # for file uploads
+      # - ./system_prompt.txt:/app/backend/system_prompt.txt  # for SYSTEM_PROMPT_FILE 
+    depends_on:
+      - ollama
+      - grafana-tool-server
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15
+    container_name: n8n-postgres
+    restart: unless-stopped   
+    environment:
+      POSTGRES_USER: n8n
+      POSTGRES_PASSWORD: YOUR_PASSWORD
+      POSTGRES_DB: n8n
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - monitoring
+
+  n8n:
+    image: n8nio/n8n:latest
+    # image: n8nio/n8n:1.112.0
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"     
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n
+      - DB_POSTGRESDB_USER=n8n
+      - DB_POSTGRESDB_PASSWORD=YOUR_PASSWORD
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=YOUR_PASSWORD
+      - N8N_HOST=n8n.local
+      - N8N_PORT=5678
+      - N8N_SECURE_COOKIE=false
+      - GRAFANA_URL=http://grafana:3000
+      - GRAFANA_API_KEY=${GRAFANA_API_KEY}
+      - N8N_GRAFANA_TOKEN=${N8N_GRAFANA_TOKEN}   # webhook auth token
+    volumes:
+      - n8n-data:/home/node/.n8n
+    depends_on:
+      - postgres
+    networks:
+      - monitoring
+
+  # fastapi-tool-server
+  grafana-tool-server:
+    build:
+      context: ./grafana-tool-server    # The dockerfile and main.py files are located in this directory.
+      dockerfile: Dockerfile            # it will build the code 
+    image: grafana-tool-server:v.3.0.1  # it will provide this tag.
+    container_name: grafana-tool-server
+    restart: unless-stopped
+    ports:
+      - "8010:8000"   # main.py  The FastAPI port is optional if you want to access it from outside.
+    environment:
+      - N8N_WEBHOOK=http://n8n:5678/webhook/grafana-query
+      - N8N_USER=admin
+      - N8N_PASS=YOUR_PASSWORD
+      - GRAFANA_ANSWER_TIMEOUT=120    # Default 120 seconds, can be increased as needed.
+      - GRAFANA_URL=http://grafana:3000
+      - GRAFANA_USER=admin
+      - GRAFANA_PASSWORD=YOUR_PASSWORD 
+    networks:
+      - monitoring      
+    depends_on:
+      - n8n
+
+volumes:
+  ollama_data:
+  openwebui_data:
+  openwebui_uploads:
+  postgres-data:
+  n8n-data:

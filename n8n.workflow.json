@@ -1,0 +1,79 @@
+{
+  "name": "Grafana Prometheus Query Test",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "1",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://grafana:3000/api/ds/query",
+        "method": "POST",
+        "authentication": "none",
+        "responseFormat": "json",
+        "jsonParameters": true,
+        "options": {},
+        "body": {
+          "queries": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "YOUR_UID"
+              },
+              "expr": "sum by (container) (rate(container_cpu_usage_seconds_total[5m]))",
+              "intervalMs": 60000,
+              "maxDataPoints": 43200
+            }
+          ],
+          "from": "now-1h",
+          "to": "now"
+        },
+        "headerParametersJson": "{ \"Authorization\": \"Bearer {{$env.N8N_GRAFANA_TOKEN}}\", \"Content-Type\": \"application/json\" }"
+      },
+      "id": "2",
+      "name": "Send Request to Grafana",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "const results = [];\n\nconst frames = $json.results?.A?.frames || [];\n\nfor (const frame of frames) {\n  const labels = frame.data.values[0];\n  const values = frame.data.values[1];\n\n  labels.forEach((label, idx) => {\n    results.push({ container: label, value: values[idx] });\n  });\n}\n\nreturn results.map(r => ({ json: r }));"
+      },
+      "id": "3",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [750, 300]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Send Request to Grafana",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Request to Grafana": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
