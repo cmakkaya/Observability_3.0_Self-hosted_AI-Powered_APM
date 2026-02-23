@@ -1,7 +1,7 @@
 # Observability_3.0_Self-hosted_AI-Powered_APM-Ollama-n8n-GrafanaToolServer-Observability-Stack
 Observability 3.0: Self-hosted AI-Powered APM = Ollama + n8n + GrafanaToolServer + Observability Stack - A Comprehensive Hands-On Guide for Live Monitoring with LLMs
 
-
+<img width="1935" height="690" alt="image" src="https://github.com/user-attachments/assets/ea252327-4aff-4cf0-850d-26ef17b6694b" />
 
 ## Step-by-Step Tutorial: Observability 3.0: AI-Powered APM = Claude (cloud-based) / Ollama (self-hosted) + MCP Server + Observability Stack 
 
